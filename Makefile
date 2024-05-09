@@ -108,4 +108,5 @@ clean:
 	@echo "Cleaning up .ipynb_checkpoints and __pycache__..."
 	@find . -name .ipynb_checkpoints -type d -prune -exec rm -rf {} +
 	@find . -name __pycache__ -type d -prune -exec rm -rf {} +
+	@find . -name *_cache -type d -prune -exec rm -rf {} +
 	@echo "Cleanup done."
