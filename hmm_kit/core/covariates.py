@@ -3,6 +3,10 @@ from numba import jit
 from tqdm import tqdm
 
 from hmm_kit.core.base import _do_mstep, calc_gamma
+from hmm_kit.core.validation import infer_n_covariates
+from hmm_kit.core.validation import validate_covariate_inputs
+from hmm_kit.core.validation import validate_covariate_pretrains
+from hmm_kit.core.validation import validate_covariate_training_sequences
 from hmm_kit.constant import SMALL_CONSTANT
 from hmm_kit.utils import normalize
 
@@ -27,6 +31,14 @@ def forward_with_covariates(
     Returns:
         np.ndarray: Matrix of forward probabilities.
     """
+    validate_covariate_inputs(
+        data,
+        covariates,
+        transition_matrix,
+        emission_matrix,
+        initial_probabilities,
+    )
+
     # Get the number of states and the length of the data
     num_states = len(initial_probabilities)
 
@@ -92,6 +104,14 @@ def backward_with_covariates(
     Returns:
         np.ndarray: Matrix of backward probabilities.
     """
+    validate_covariate_inputs(
+        data,
+        covariates,
+        transition_matrix,
+        emission_matrix,
+        initial_probabilities,
+    )
+
     # Get the number of states and the length of the data
     num_states = len(initial_probabilities)
 
@@ -259,9 +279,7 @@ def _do_estep_with_covariates(
 
     n_hiddens = len(initial_probabilities)
     n_outcomes = emission_matrix.shape[-1]
-    n_covariates = len(
-        set(np.concatenate(covariates_list).ravel())
-    )  # should consider some sequence only has incomplete covariate realizations
+    n_covariates = transition_matrix.shape[0]
 
     stats = _initialize_statistics(n_covariates, n_hiddens, n_outcomes)
     log_likelihood = 0
@@ -298,9 +316,10 @@ def _do_estep_with_covariates(
 
         log_likelihood += llk
 
+        stats["startprob"] += gamma[0]
+
         # update by each covariate value
         for cov in range(n_covariates):
-            stats["startprob"] += gamma[0]
             stats["transmat"][cov] += xi[(covariates[:-1] == cov)].sum(axis=0)
             np.add.at(
                 stats["emissmat"][cov].T,
@@ -355,7 +374,10 @@ def baum_welch_with_covariates(
             initial_probabilities (np.ndarray): The estimated initial probabilities of shape (n_hiddens).
 
     """
-    n_covariates = len(set(np.concatenate(covariates_list).ravel()))
+    n_covariates = infer_n_covariates(covariates_list)
+    validate_covariate_training_sequences(
+        data_list, covariates_list, n_outcomes, n_covariates
+    )
 
     # initialize parameters if pretrains are not given
     if pretrains is None:
@@ -365,6 +387,7 @@ def baum_welch_with_covariates(
         emission_matrix = normalize(np.random.rand(n_covariates, n_hiddens, n_outcomes))
         initial_probabilities = normalize(np.random.rand(n_hiddens))
     else:
+        validate_covariate_pretrains(pretrains, n_covariates, n_hiddens, n_outcomes)
         (transition_matrix, emission_matrix, initial_probabilities) = pretrains
 
     llks = []
@@ -384,7 +407,8 @@ def baum_welch_with_covariates(
         if (prev_log_likelihood is not None) and (
             np.abs(log_likelihood - prev_log_likelihood) < tol
         ):
-            print(f"Algorithm converged after {n_iter} iters.")
+            if verbose:
+                print(f"Algorithm converged after {n_iter} iters.")
             break
         prev_log_likelihood = log_likelihood
 

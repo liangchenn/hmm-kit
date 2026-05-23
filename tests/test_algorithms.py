@@ -246,7 +246,7 @@ class TestGammXiStatistics(BaseTestCase):
             log_likelihood, forward_probabilities = base_hmm.forward(
                 data, A, B, initial_probabilities
             )
-            _, backward_probabilities = base_hmm.forward(
+            _, backward_probabilities = base_hmm.backward(
                 data, A, B, initial_probabilities
             )
 
@@ -269,6 +269,38 @@ class TestGammXiStatistics(BaseTestCase):
 
             # Check the log likelihood
             self.assertTrue(np.allclose(xi, expected_xi))
+
+
+class TestValidationAndStatistics(BaseTestCase):
+    def test_covariate_estep_startprob_is_counted_once_per_sequence(self):
+        """Start probabilities should not be multiplied by the number of covariates."""
+        test_case = next(case for case in self.test_cases if case["type"] == "covariates")
+
+        _, stats = cov_hmm._do_estep_with_covariates(
+            [test_case["data"]],
+            [test_case["covariates"]],
+            test_case["transition_matrix"],
+            test_case["emission_matrix"],
+            test_case["initial_probabilities"],
+        )
+
+        self.assertTrue(np.isclose(stats["startprob"].sum(), 1.0))
+
+    def test_forward_rejects_out_of_range_observation_label(self):
+        """Invalid labels should fail before entering the low-level kernels."""
+        test_case = next(case for case in self.test_cases if case["type"] == "base")
+        data = test_case["data"].copy()
+        data[0] = test_case["emission_matrix"].shape[-1]
+        transition_matrix = test_case["transition_matrix"].squeeze(0)
+        emission_matrix = test_case["emission_matrix"].squeeze(0)
+
+        with self.assertRaisesRegex(ValueError, "outside the valid range"):
+            forward(
+                data,
+                transition_matrix,
+                emission_matrix,
+                test_case["initial_probabilities"],
+            )
 
 
 if __name__ == "__main__":

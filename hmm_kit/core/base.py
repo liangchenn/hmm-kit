@@ -3,6 +3,9 @@ from numba import jit
 from tqdm import tqdm
 
 from hmm_kit.constant import SMALL_CONSTANT
+from hmm_kit.core.validation import validate_base_inputs
+from hmm_kit.core.validation import validate_base_pretrains
+from hmm_kit.core.validation import validate_training_sequences
 from hmm_kit.utils import _initialize_statistics, normalize
 
 
@@ -24,6 +27,10 @@ def forward(
     Returns:
         np.ndarray: Matrix of log forward probabilities.
     """
+    validate_base_inputs(
+        data, transition_matrix, emission_matrix, initial_probabilities
+    )
+
     # Get the number of states and the length of the data
     num_states = len(initial_probabilities)
 
@@ -61,6 +68,10 @@ def backward(
     Returns:
         np.ndarray: Matrix of log backward probabilities.
     """
+    validate_base_inputs(
+        data, transition_matrix, emission_matrix, initial_probabilities
+    )
+
     # Get the number of states and the length of the data
     num_states = len(initial_probabilities)
 
@@ -268,12 +279,15 @@ def baum_welch(
             initial_probabilities (np.ndarray): The estimated initial probabilities of shape (n_hiddens).
 
     """
+    validate_training_sequences(data_list, n_outcomes)
+
     # initialize parameters
     if pretrains is None:
         transition_matrix = normalize(np.random.rand(n_hiddens, n_hiddens))
         emission_matrix = normalize(np.random.rand(n_hiddens, n_outcomes))
         initial_probabilities = normalize(np.random.rand(n_hiddens))
     else:
+        validate_base_pretrains(pretrains, n_hiddens, n_outcomes)
         (transition_matrix, emission_matrix, initial_probabilities) = pretrains
 
     llks = []
@@ -289,7 +303,8 @@ def baum_welch(
         if (prev_log_likelihood is not None) and (
             np.abs(log_likelihood - prev_log_likelihood) < tol
         ):
-            print(f"Algorithm converged after {n_iter} iters.")
+            if verbose:
+                print(f"Algorithm converged after {n_iter} iters.")
             break
         prev_log_likelihood = log_likelihood
 

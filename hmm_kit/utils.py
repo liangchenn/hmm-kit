@@ -66,7 +66,11 @@ def normalize(arr: list | np.ndarray, axis: int = -1):
     - arr: array-like numeric data
     - axis: dimension for normalization
     """
-    return arr / arr.sum(axis=axis, keepdims=1)
+    arr = np.asarray(arr, dtype=float)
+    denominator = arr.sum(axis=axis, keepdims=True)
+    if np.any(np.isclose(denominator, 0)):
+        raise ValueError("Cannot normalize values with a zero sum")
+    return arr / denominator
 
 
 def switch_label(

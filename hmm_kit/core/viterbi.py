@@ -2,6 +2,7 @@ import numpy as np
 from numba import jit
 
 from hmm_kit.constant import SMALL_CONSTANT
+from hmm_kit.core.validation import validate_covariate_inputs
 
 
 def decode(
@@ -42,6 +43,13 @@ def decode(
             - float: The log-likelihood of the most likely path.
             - np.array: An array representing the most likely sequence of states.
     """
+    validate_covariate_inputs(
+        data,
+        covariate,
+        transition_matrix,
+        emission_matrix,
+        initial_probabilities,
+    )
 
     # log domain
     log_A = np.log(transition_matrix + SMALL_CONSTANT)
